@@ -31,6 +31,15 @@ const createCustomer = async ({ full_name, phone, id_card, email }) => {
     );
 };
 
+const createCustomerTransaction = async (connection, { full_name, phone, id_card, email, user_id = null }) => {
+    const [result] = await connection.query(
+        `INSERT INTO customers (full_name, phone, id_card, email, user_id)
+         VALUES (?, ?, ?, ?, ?)`,
+        [full_name, phone, id_card, email, user_id]
+    );
+    return result.insertId;
+};
+
 
 const updateCustomer = async ({ id, full_name, phone, id_card, email }) => {
     await db.query(
@@ -74,6 +83,7 @@ module.exports = {
     getCustomers,
     getCustomerById,
     createCustomer,
+    createCustomerTransaction,
     updateCustomer,
     countCustomers,
     findCustomerIdByUserId,

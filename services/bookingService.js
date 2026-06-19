@@ -120,7 +120,7 @@ const getBookings = async ({ page = 1, limit = 6, status, search, check_in, chec
   }
 
   if (status) {
-    where.push("b.status = ?");
+    where.push("LOWER(b.status) = LOWER(?)");
     params.push(status);
   }
 
@@ -137,7 +137,7 @@ const getBookings = async ({ page = 1, limit = 6, status, search, check_in, chec
       `%${search}%`
     ];
 
-    if (!isNaN(search)) {
+    if (!isNaN(search) && search.trim() !== "") {
       searchConditions += " OR b.id = ?";
       searchParams.push(Number(search));
     }
@@ -146,11 +146,14 @@ const getBookings = async ({ page = 1, limit = 6, status, search, check_in, chec
     params.push(...searchParams);
   }
 
-  if (check_in && check_out) {
-    where.push(`
-        b.check_in_date < ? AND b.check_out_date > ?
-      `);
-    params.push(check_out, check_in);
+  if (check_in) {
+    where.push("b.check_in_date >= ?");
+    params.push(check_in);
+  }
+
+  if (check_out) {
+    where.push("b.check_out_date <= ?");
+    params.push(check_out);
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";

@@ -5,8 +5,12 @@ const getAllCustomers = async ({ page = 1, limit = 6, search = "" }) => {
     const pageSize = parseInt(limit, 10) || 6;
     const trimmedSearch = (search || "").trim();
     const offset = (currentPage - 1) * pageSize;
-    const whereClause = trimmedSearch ? "WHERE full_name LIKE ?" : "";
-    const whereParams = trimmedSearch ? [`%${trimmedSearch}%`] : [];
+    const whereClause = trimmedSearch
+        ? "WHERE c.full_name LIKE ? OR c.phone LIKE ? OR c.id_card LIKE ? OR c.email LIKE ?"
+        : "";
+    const whereParams = trimmedSearch
+        ? [`%${trimmedSearch}%`, `%${trimmedSearch}%`, `%${trimmedSearch}%`, `%${trimmedSearch}%`]
+        : [];
 
     const total = await customerRepository.countCustomers(whereClause, whereParams);
     const rows = await customerRepository.getCustomers({
