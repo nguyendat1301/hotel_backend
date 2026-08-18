@@ -9,7 +9,8 @@ const userRoutes = require('./routes/userRoutes');
 const roomTypeRoutes = require('./routes/roomTypeRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
-const customerRoutes = require('./routes/customerRoute');
+const roleRoutes = require('./routes/roleRoutes');
+const permissionRoutes = require('./routes/permissionRoutes');
 
 const app = express();
 
@@ -25,6 +26,8 @@ app.use(cookieParser());
 app.set('trust proxy', 1);
 
 
+app.use('/api/roles', roleRoutes);
+app.use('/api/permissions', permissionRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/room-types', roomTypeRoutes);

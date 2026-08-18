@@ -3,6 +3,8 @@ const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require("google-auth-library");
 const authRepository = require("../repositories/authRepository");
 const emailService = require("./emailService");
+const permissionService = require("./permissionService");
+const roleService = require("./roleService");
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -198,7 +200,13 @@ const getProfile = async (id) => {
   if (!user) {
     throw new Error("Người dùng không tồn tại");
   }
-  return user;
+  const roles = await roleService.getUserRoles(id);
+  const permissions = await permissionService.getUserPermissions(id);
+  return {
+    ...user,
+    roles,
+    permissions,
+  };
 };
 
 const updateProfile = async (id, { user_name, email }) => {

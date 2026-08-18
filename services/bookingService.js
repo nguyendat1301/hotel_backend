@@ -236,10 +236,14 @@ const payFullRemaining = async ({ id, payment_method = "cash" }) => {
 
     // Send confirmation email
     if (bookingDetails) {
-      emailService.sendBookingConfirmation(bookingDetails.email, {
+      try{
+        await emailService.sendBookingConfirmation(bookingDetails.email, {
         ...bookingDetails,
         paymentStatus: "PAID",
       });
+      }catch(error){
+        console.error("Error sending booking confirmation email:", error);
+      }
     }
 
     return {
