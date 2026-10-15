@@ -17,14 +17,14 @@ const normalizePayment = ({ totalPrice, paymentAmount }) => {
 };
 
 const ensureCustomer = async (connection, bookingPayload, user) => {
-  if (user) {
+  if (user && user.id) {
     const byUserId = await customerRepository.findCustomerIdByUserId(connection, user.id);
     if (byUserId) return byUserId;
     return customerRepository.createCustomerTransaction(connection, {
-      full_name: bookingPayload.full_name,
-      phone: bookingPayload.phone,
-      email: bookingPayload.email,
-      id_card: bookingPayload.id_card,
+      full_name: bookingPayload.full_name || user.user_name,
+      phone: bookingPayload.phone || "",
+      email: bookingPayload.email || user.email,
+      id_card: bookingPayload.id_card || "",
       user_id: user.id,
     });
   }
@@ -48,58 +48,176 @@ const getAvailableRooms = async ({ check_in, check_out, room_type_id }) => {
 };
 
 const createBooking = async ({ payload, user }) => {
+  // 1. Validate dates
+  const checkInDate = payload.check_in_date || payload.checkInDate;
+  const checkOutDate = payload.check_out_date || payload.checkOutDate;
+
+  if (!checkInDate || !checkOutDate) {
+    throw new Error("Vui lòng cung cấp ngày nhận phòng và ngày trả phòng hợp lệ");
+  }
+
+  const startDate = new Date(checkInDate);
+  const endDate = new Date(checkOutDate);
+
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    throw new Error("Định dạng ngày nhận/trả phòng không hợp lệ");
+  }
+
+  if (startDate >= endDate) {
+    throw new Error("Ngày nhận phòng phải trước ngày trả phòng");
+  }
+
+  // Calculate nights
+  const nights = Math.max(
+    1,
+    Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+  );
+
+  // 2. Normalize and validate rooms list
+  let requestedRooms = [];
+  if (Array.isArray(payload.rooms) && payload.rooms.length > 0) {
+    requestedRooms = payload.rooms.map((r) => ({
+      roomId: Number(r.roomId || r.room_id || r.id),
+      guestCount: Math.max(1, Number(r.guestCount || r.guest_count || 1)),
+    }));
+  } else if (payload.room_id || payload.roomId) {
+    requestedRooms = [
+      {
+        roomId: Number(payload.room_id || payload.roomId),
+        guestCount: Math.max(1, Number(payload.guest_count || payload.guestCount || 1)),
+      },
+    ];
+  }
+
+  if (requestedRooms.length === 0) {
+    throw new Error("Vui lòng chọn ít nhất một phòng");
+  }
+
+  // Validate duplicate rooms
+  const roomIds = requestedRooms.map((r) => r.roomId);
+  const uniqueIds = new Set(roomIds);
+  if (uniqueIds.size !== roomIds.length) {
+    throw new Error("Không thể đặt cùng một phòng nhiều lần trong một đơn hàng");
+  }
+
   const connection = await db.getConnection();
   try {
+    await connection.beginTransaction();
+
+    // 3. Lock requested rooms and fetch official prices from DB with FOR UPDATE
+    const dbRooms = await roomRepository.getRoomsWithDetailsByIds(connection, roomIds);
+
+    if (dbRooms.length !== roomIds.length) {
+      throw new Error("Một hoặc nhiều phòng được chọn không tồn tại trong hệ thống");
+    }
+
+    const dbRoomMap = new Map();
+    for (const r of dbRooms) {
+      if (r.status && r.status.toLowerCase() === "maintenance") {
+        throw new Error(`Phòng ${r.room_number} hiện đang được bảo trì, không thể đặt`);
+      }
+      dbRoomMap.set(r.id, r);
+    }
+
+    // 4. Validate guest capacity for each room and prepare booking details
+    let calculatedTotalPrice = 0;
+    const roomDetailsToInsert = [];
+
+    for (const reqRoom of requestedRooms) {
+      const roomInfo = dbRoomMap.get(reqRoom.roomId);
+      const maxGuests = roomInfo.max_guests || 2;
+      if (reqRoom.guestCount > maxGuests) {
+        throw new Error(
+          `Phòng ${roomInfo.room_number} (${roomInfo.room_name}) chỉ chứa tối đa ${maxGuests} khách (bạn đã chọn ${reqRoom.guestCount} khách)`
+        );
+      }
+
+      const pricePerNight = Number(roomInfo.price_per_night) || 0;
+      const subtotal = pricePerNight * nights;
+      calculatedTotalPrice += subtotal;
+
+      roomDetailsToInsert.push({
+        roomId: reqRoom.roomId,
+        roomNumber: roomInfo.room_number,
+        roomName: roomInfo.room_name,
+        pricePerNight,
+        nights,
+        subtotal,
+        guestCount: reqRoom.guestCount,
+      });
+    }
+
+    // 5. Check overlapping conflicts (now that rooms are locked, this check is race-condition safe)
+    const conflict = await bookingRepository.hasBookingConflict(connection, {
+      roomIds,
+      checkInDate,
+      checkOutDate,
+    });
+
+    if (conflict) {
+      throw new Error(
+        `Phòng ${conflict.room_number || conflict.room_id} đã được đặt trong khoảng thời gian này`
+      );
+    }
+
+    // 6. Ensure customer record
+    const customerId = await ensureCustomer(connection, payload, user);
+
+    // 7. Calculate payment
     const payment = normalizePayment({
-      totalPrice: payload.total_price,
+      totalPrice: calculatedTotalPrice,
       paymentAmount: payload.payment_amount,
     });
 
-    await connection.beginTransaction();
-
-    const customerId = await ensureCustomer(connection, payload, user);
-    const hasConflict = await bookingRepository.hasBookingConflict(connection, {
-      roomId: payload.room_id,
-      checkInDate: payload.check_in_date,
-      checkOutDate: payload.check_out_date,
-    });
-
-    if (hasConflict) {
-      throw new Error("Phòng đã được đặt trong khoảng thời gian này");
-    }
-
+    // 8. Insert into bookings (Header)
+    const primaryRoomId = roomDetailsToInsert[0]?.roomId || null;
     const bookingId = await bookingRepository.createBooking(connection, {
       customerId,
-      roomId: payload.room_id,
-      checkInDate: payload.check_in_date,
-      checkOutDate: payload.check_out_date,
-      totalPrice: payment.totalPriceNum,
+      roomId: primaryRoomId,
+      checkInDate,
+      checkOutDate,
+      totalPrice: calculatedTotalPrice,
+      status: "BOOKED",
     });
 
+    // 9. Insert items into booking_details
+    await bookingRepository.createBookingDetails(connection, bookingId, roomDetailsToInsert);
+
+    // 10. Record payment at order level
     await paymentRepository.createPayment(connection, {
       bookingId,
       amount: payment.paidAmount,
-      paymentMethod: payload.payment_method,
+      paymentMethod: payload.payment_method || "transfer",
       status: payment.paymentStatus,
     });
 
     await connection.commit();
 
-    // Send confirmation email if paid
-    if (payment.paidAmount > 0) {
-      emailService.sendBookingConfirmation(payload.email, {
-        bookingId,
-        checkInDate: payload.check_in_date,
-        checkOutDate: payload.check_out_date,
-        totalPrice: payment.totalPriceNum,
-        paymentStatus: payment.paymentStatus,
-      });
+    // 11. Send confirmation email (after commit, with error isolated)
+    try {
+      const recipientEmail = payload.email || (user ? user.email : "");
+      if (recipientEmail) {
+        emailService.sendBookingConfirmation(recipientEmail, {
+          bookingId,
+          customerName: payload.full_name || (user ? user.user_name : ""),
+          checkInDate,
+          checkOutDate,
+          totalPrice: calculatedTotalPrice,
+          paymentStatus: payment.paymentStatus,
+          rooms: roomDetailsToInsert,
+          totalRooms: roomDetailsToInsert.length,
+        });
+      }
+    } catch (emailErr) {
+      console.error("Gửi email xác nhận thất bại (đơn đặt phòng vẫn thành công):", emailErr);
     }
 
     return {
       bookingId,
       payment_status: payment.paymentStatus,
       remaining_amount: payment.remainingAmount,
+      total_price: calculatedTotalPrice,
+      total_rooms: roomDetailsToInsert.length,
     };
   } catch (error) {
     await connection.rollback();
@@ -236,10 +354,14 @@ const payFullRemaining = async ({ id, payment_method = "cash" }) => {
 
     // Send confirmation email
     if (bookingDetails) {
-      emailService.sendBookingConfirmation(bookingDetails.email, {
-        ...bookingDetails,
-        paymentStatus: "PAID",
-      });
+      try {
+        emailService.sendBookingConfirmation(bookingDetails.email, {
+          ...bookingDetails,
+          paymentStatus: "PAID",
+        });
+      } catch (emailErr) {
+        console.error("Gửi email thanh toán nốt thất bại:", emailErr);
+      }
     }
 
     return {
