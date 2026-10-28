@@ -36,11 +36,13 @@ exports.createBooking = async (req, res) => {
       message: "Đặt phòng thành công",
       bookingId: result.bookingId,
       payment_status: result.payment_status,
-      remaining_amount: result.remaining_amount
+      remaining_amount: result.remaining_amount,
+      total_price: result.total_price,
+      total_rooms: result.total_rooms,
     });
 
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(400).json({ message: err.message });
   }
 };
 
