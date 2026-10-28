@@ -63,7 +63,12 @@ const createBooking = async ({ payload, user }) => {
     throw new Error("Định dạng ngày nhận/trả phòng không hợp lệ");
   }
 
-  if (startDate >= endDate) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (startDate < today) {
+    throw new Error("Ngày nhận phòng không thể ở trong quá khứ");
+  }
+  else if (startDate >= endDate) {
     throw new Error("Ngày nhận phòng phải trước ngày trả phòng");
   }
 
@@ -300,7 +305,21 @@ const getBookings = async ({ page = 1, limit = 6, status, search, check_in, chec
   };
 };
 
-const updateBookingStatus = async ({ id, status }) => {
+const canAccessBooking = (user, ownerUserId) =>
+  ["admin"].includes(
+    String(user?.role || "").toLowerCase().trim()
+  ) ||
+  (user?.id != null &&
+    ownerUserId != null &&
+    String(ownerUserId) === String(user.id));
+
+const updateBookingStatus = async ({ id, status, user }) => {
+  const booking = await bookingRepository.getBookingOwnerUserId(id);
+  if (!booking) return { notFound: true };
+  if (!canAccessBooking(user, booking.user_id)) {
+    return { forbidden: true };
+  }
+
   await bookingRepository.updateBookingStatus({ id, status });
 
   const lowerStatus = status.toLowerCase();
@@ -318,9 +337,11 @@ const updateBookingStatus = async ({ id, status }) => {
       roomStatus: "available",
     });
   }
+
+  return {};
 };
 
-const payFullRemaining = async ({ id, payment_method = "cash" }) => {
+const payFullRemaining = async ({ id, payment_method = "cash", user }) => {
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
@@ -329,6 +350,11 @@ const payFullRemaining = async ({ id, payment_method = "cash" }) => {
     if (!booking) {
       await connection.rollback();
       return { notFound: true };
+    }
+
+    if (!canAccessBooking(user, booking.owner_user_id)) {
+      await connection.rollback();
+      return { forbidden: true };
     }
 
     const paidAmount = await paymentRepository.getPaidAmountByBookingId(connection, id);

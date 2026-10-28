@@ -111,7 +111,14 @@ exports.updateBookingStatus = async (req, res) => {
   const { status } = req.body;
 
   try {
-    await bookingService.updateBookingStatus({ id, status });
+    const result = await bookingService.updateBookingStatus({ id, status, user: req.user });
+
+    if (result.notFound) {
+      return res.status(404).json({ message: "Không tìm thấy booking" });
+    }
+    if (result.forbidden) {
+      return res.status(403).json({ message: "Bạn không có quyền cập nhật booking này" });
+    }
 
     res.json({ message: "Cập nhật thành công" });
 
@@ -128,9 +135,12 @@ exports.payFullRemaining = async (req, res) => {
   const { payment_method = "cash" } = req.body || {};
 
   try {
-    const result = await bookingService.payFullRemaining({ id, payment_method });
+    const result = await bookingService.payFullRemaining({ id, payment_method, user: req.user });
     if (result.notFound) {
       return res.status(404).json({ message: "Không tìm thấy booking" });
+    }
+    if (result.forbidden) {
+      return res.status(403).json({ message: "Bạn không có quyền thanh toán booking này" });
     }
 
     if (result.alreadyPaid) {

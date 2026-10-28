@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const roomController = require('../controllers/roomController');
 const verifyToken = require('../middleware/auth');
-const requireRole = require('../middleware/authorize');
+const requireRole = require('../middleware/requireRole');
 
 router.get('/', roomController.getAllRooms);
 router.get('/:id', roomController.getRoomById);

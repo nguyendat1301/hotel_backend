@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const roomTypeController = require('../controllers/roomTypeController');
 const upload = require("../middleware/upload");
+const verifyToken = require('../middleware/auth');
+const requireRole = require('../middleware/requireRole');   
 
 router.get('/', roomTypeController.getAllRoomTypes);
 router.get('/search', roomTypeController.searchRoomTypes);
