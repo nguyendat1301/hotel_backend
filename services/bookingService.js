@@ -6,6 +6,7 @@ const paymentRepository = require("../repositories/paymentRepository");
 const dashboardRepository = require("../repositories/dashboardRepository");
 const emailService = require("./emailService");
 const { calculateNights, getTodayDateOnly, isValidDateOnly } = require("../utils/dateOnly");
+const { getPagination, getPaginationMetadata } = require("../utils/pagination");
 
 const normalizePayment = ({ totalPrice, paymentAmount }) => {
   const totalPriceNum = Number(totalPrice) || 0;
@@ -224,8 +225,16 @@ const createBooking = async ({ payload, user }) => {
   }
 };
 
-const getBookings = async ({ page = 1, limit = 6, status, search, check_in, check_out, userId }) => {
-  const offset = (page - 1) * limit;
+const getBookings = async ({
+  page,
+  limit,
+  status,
+  search,
+  check_in,
+  check_out,
+  userId,
+} = {}) => {
+  const requestedPagination = getPagination({ page, limit });
   const where = [];
   const params = [];
 
@@ -272,8 +281,18 @@ const getBookings = async ({ page = 1, limit = 6, status, search, check_in, chec
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-  const rows = await bookingRepository.getBookings({ whereSql, params, limit, offset });
-  const total = await bookingRepository.countBookings({ whereSql, params });
+  const totalItems = await bookingRepository.countBookings({ whereSql, params });
+  const pagination = getPaginationMetadata(
+    totalItems,
+    requestedPagination.currentPage,
+    requestedPagination.limit
+  );
+  const rows = await bookingRepository.getBookings({
+    whereSql,
+    params,
+    limit: pagination.limit,
+    offset: pagination.offset,
+  });
 
   const normalizedRows = rows.map((row) => {
     const totalPrice = Number(row.total_price) || 0;
@@ -290,9 +309,11 @@ const getBookings = async ({ page = 1, limit = 6, status, search, check_in, chec
   return {
     data: normalizedRows,
     pagination: {
-      total,
-      totalPages: Math.ceil(total / limit),
-      currentPage: parseInt(page, 10),
+      total: pagination.totalItems,
+      totalItems: pagination.totalItems,
+      totalPages: pagination.totalPages,
+      currentPage: pagination.currentPage,
+      limit: pagination.limit,
     },
   };
 };

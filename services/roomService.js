@@ -1,28 +1,32 @@
 const roomRepository = require("../repositories/roomRepository");
+const { getPagination, getPaginationMetadata } = require("../utils/pagination");
 
-const getAllRooms = async ({ page = 1, limit = 6, search = "" }) => {
-  const currentPage = parseInt(page, 10) || 1;
-  const pageSize = parseInt(limit, 10) || 6;
+const getAllRooms = async ({ page, limit, search = "" } = {}) => {
+  const requestedPagination = getPagination({ page, limit });
   const trimmedSearch = (search || "").trim();
-  const offset = (currentPage - 1) * pageSize;
   const whereClause = trimmedSearch ? "WHERE r.room_number LIKE ?" : "";
   const whereParams = trimmedSearch ? [`%${trimmedSearch}%`] : [];
 
-  const total = await roomRepository.countRooms(whereClause, whereParams);
+  const totalItems = await roomRepository.countRooms(whereClause, whereParams);
+  const pagination = getPaginationMetadata(
+    totalItems,
+    requestedPagination.currentPage,
+    requestedPagination.limit
+  );
   const rows = await roomRepository.getRooms({
     whereClause,
     whereParams,
-    limit: pageSize,
-    offset,
+    limit: pagination.limit,
+    offset: pagination.offset,
   });
 
   return {
     data: rows,
     pagination: {
-      totalItems: total,
-      totalPages: Math.ceil(total / pageSize),
-      currentPage,
-      limit: pageSize,
+      totalItems: pagination.totalItems,
+      totalPages: pagination.totalPages,
+      currentPage: pagination.currentPage,
+      limit: pagination.limit,
     },
   };
 };

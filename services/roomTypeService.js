@@ -26,7 +26,23 @@ const getAllRoomTypes = async () => {
 };
 
 const searchRoomTypes = async (filters) => {
-  const { keyword, room_name, max_guests, min_price, max_price, sort } = filters || {};
+  const {
+    keyword,
+    room_name,
+    max_guests,
+    min_price,
+    max_price,
+    sort,
+  } = filters || {};
+
+  const requestedPage = Number(filters?.page);
+  const currentPage = Number.isSafeInteger(requestedPage) && requestedPage > 0
+    ? requestedPage
+    : 1;
+  const requestedLimit = Number(filters?.limit);
+  const limit = Number.isSafeInteger(requestedLimit) && requestedLimit > 0
+    ? Math.min(requestedLimit, 50)
+    : 9;
 
   let whereClauses = [];
   let params = [];
@@ -69,8 +85,18 @@ const searchRoomTypes = async (filters) => {
 
   const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
-  const rows = await roomTypeRepository.searchRoomTypes({ whereSql, params, sort });
-  return rows.map(mapImages);
+  const result = await roomTypeRepository.searchRoomTypes({
+    whereSql,
+    params,
+    sort,
+    limit,
+    page: currentPage,
+  });
+
+  return {
+    data: result.rows.map(mapImages),
+    pagination: result.pagination,
+  };
 };
 
 const getRoomTypeById = async (id) => {

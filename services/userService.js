@@ -1,20 +1,28 @@
 const bcrypt = require("bcryptjs");
 const userRepository = require("../repositories/userRepository");
+const { getPagination, getPaginationMetadata } = require("../utils/pagination");
 
-const getUsers = async ({ page = 1, limit = 6 }) => {
-  const currentPage = parseInt(page, 10) || 1;
-  const pageSize = parseInt(limit, 10) || 6;
-  const offset = (currentPage - 1) * pageSize;
+const getUsers = async ({ page, limit } = {}) => {
+  const requestedPagination = getPagination({ page, limit });
 
-  const total = await userRepository.countUsers();
-  const rows = await userRepository.getUsers({ limit: pageSize, offset });
+  const totalItems = await userRepository.countUsers();
+  const pagination = getPaginationMetadata(
+    totalItems,
+    requestedPagination.currentPage,
+    requestedPagination.limit
+  );
+  const rows = await userRepository.getUsers({
+    limit: pagination.limit,
+    offset: pagination.offset,
+  });
 
   return {
     data: rows,
     pagination: {
-      totalItems: total,
-      totalPages: Math.ceil(total / pageSize),
-      currentPage,
+      totalItems: pagination.totalItems,
+      totalPages: pagination.totalPages,
+      currentPage: pagination.currentPage,
+      limit: pagination.limit,
     },
   };
 };
