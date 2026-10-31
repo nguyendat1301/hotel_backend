@@ -195,8 +195,8 @@ const resetPassword = async ({ token, newPassword }) => {
 };
 const getProfile = async (id) => {
   const user = await authRepository.getUserById(id);
-  if (!user) {
-    throw new Error("Người dùng không tồn tại");
+  if (!user || user.status_user?.toUpperCase() === "INACTIVE") {
+    return null;
   }
   return user;
 };

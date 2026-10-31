@@ -95,6 +95,9 @@ exports.resetPassword = async (req, res) => {
 exports.getProfile = async (req, res) => {
     try {
         const user = await authService.getProfile(req.user.id);
+        if (!user) {
+            return res.status(401).json({ message: "Phiên đăng nhập không hợp lệ" });
+        }
         res.json(user);
     } catch (error) {
         res.status(500).json({ message: error.message });

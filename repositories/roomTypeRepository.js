@@ -5,7 +5,21 @@ const getAllRoomTypes = async () => {
   return rows;
 };
 
-const searchRoomTypes = async ({ whereSql, params }) => {
+const searchRoomTypes = async ({ whereSql, params, sort, limit, page }) => {
+  const orderBy = sort === "price_asc"
+    ? "rt.price_per_night ASC, rt.id DESC"
+    : sort === "price_desc"
+      ? "rt.price_per_night DESC, rt.id DESC"
+      : "rt.id DESC";
+
+  const [countRows] = await db.query(
+    `SELECT COUNT(*) AS total FROM room_types rt ${whereSql}`,
+    params
+  );
+  const totalItems = Number(countRows[0]?.total) || 0;
+  const totalPages = Math.ceil(totalItems / limit);
+  const currentPage = totalPages > 0 ? Math.min(page, totalPages) : 1;
+  const offset = (currentPage - 1) * limit;
   const [rows] = await db.query(
     `
       SELECT
@@ -21,11 +35,15 @@ const searchRoomTypes = async ({ whereSql, params }) => {
       LEFT JOIN room r ON r.room_type_id = rt.id
       ${whereSql}
       GROUP BY rt.id
-      ORDER BY rt.id DESC
+      ORDER BY ${orderBy}
+      LIMIT ? OFFSET ?
     `,
-    params
+    [...params, limit, offset]
   );
-  return rows;
+  return {
+    rows,
+    pagination: { totalItems, totalPages, currentPage, limit },
+  };
 };
 
 const getRoomTypeById = async (id) => {

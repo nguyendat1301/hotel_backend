@@ -5,6 +5,8 @@ const roomRepository = require("../repositories/roomRepository");
 const paymentRepository = require("../repositories/paymentRepository");
 const dashboardRepository = require("../repositories/dashboardRepository");
 const emailService = require("./emailService");
+const { calculateNights, getTodayDateOnly, isValidDateOnly } = require("../utils/dateOnly");
+const { getPagination, getPaginationMetadata } = require("../utils/pagination");
 
 const normalizePayment = ({ totalPrice, paymentAmount }) => {
   const totalPriceNum = Number(totalPrice) || 0;
@@ -56,22 +58,18 @@ const createBooking = async ({ payload, user }) => {
     throw new Error("Vui lòng cung cấp ngày nhận phòng và ngày trả phòng hợp lệ");
   }
 
-  const startDate = new Date(checkInDate);
-  const endDate = new Date(checkOutDate);
-
-  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+  if (!isValidDateOnly(checkInDate) || !isValidDateOnly(checkOutDate)) {
     throw new Error("Định dạng ngày nhận/trả phòng không hợp lệ");
   }
 
-  if (startDate >= endDate) {
+  if (checkInDate < getTodayDateOnly()) {
+    throw new Error("Ngày nhận phòng không thể ở trong quá khứ");
+  }
+  else if (checkInDate >= checkOutDate) {
     throw new Error("Ngày nhận phòng phải trước ngày trả phòng");
   }
 
-  // Calculate nights
-  const nights = Math.max(
-    1,
-    Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-  );
+  const nights = calculateNights(checkInDate, checkOutDate);
 
   // 2. Normalize and validate rooms list
   let requestedRooms = [];
@@ -227,8 +225,16 @@ const createBooking = async ({ payload, user }) => {
   }
 };
 
-const getBookings = async ({ page = 1, limit = 6, status, search, check_in, check_out, userId }) => {
-  const offset = (page - 1) * limit;
+const getBookings = async ({
+  page,
+  limit,
+  status,
+  search,
+  check_in,
+  check_out,
+  userId,
+} = {}) => {
+  const requestedPagination = getPagination({ page, limit });
   const where = [];
   const params = [];
 
@@ -275,8 +281,18 @@ const getBookings = async ({ page = 1, limit = 6, status, search, check_in, chec
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-  const rows = await bookingRepository.getBookings({ whereSql, params, limit, offset });
-  const total = await bookingRepository.countBookings({ whereSql, params });
+  const totalItems = await bookingRepository.countBookings({ whereSql, params });
+  const pagination = getPaginationMetadata(
+    totalItems,
+    requestedPagination.currentPage,
+    requestedPagination.limit
+  );
+  const rows = await bookingRepository.getBookings({
+    whereSql,
+    params,
+    limit: pagination.limit,
+    offset: pagination.offset,
+  });
 
   const normalizedRows = rows.map((row) => {
     const totalPrice = Number(row.total_price) || 0;
@@ -293,14 +309,30 @@ const getBookings = async ({ page = 1, limit = 6, status, search, check_in, chec
   return {
     data: normalizedRows,
     pagination: {
-      total,
-      totalPages: Math.ceil(total / limit),
-      currentPage: parseInt(page, 10),
+      total: pagination.totalItems,
+      totalItems: pagination.totalItems,
+      totalPages: pagination.totalPages,
+      currentPage: pagination.currentPage,
+      limit: pagination.limit,
     },
   };
 };
 
-const updateBookingStatus = async ({ id, status }) => {
+const canAccessBooking = (user, ownerUserId) =>
+  ["admin"].includes(
+    String(user?.role || "").toLowerCase().trim()
+  ) ||
+  (user?.id != null &&
+    ownerUserId != null &&
+    String(ownerUserId) === String(user.id));
+
+const updateBookingStatus = async ({ id, status, user }) => {
+  const booking = await bookingRepository.getBookingOwnerUserId(id);
+  if (!booking) return { notFound: true };
+  if (!canAccessBooking(user, booking.user_id)) {
+    return { forbidden: true };
+  }
+
   await bookingRepository.updateBookingStatus({ id, status });
 
   const lowerStatus = status.toLowerCase();
@@ -318,9 +350,11 @@ const updateBookingStatus = async ({ id, status }) => {
       roomStatus: "available",
     });
   }
+
+  return {};
 };
 
-const payFullRemaining = async ({ id, payment_method = "cash" }) => {
+const payFullRemaining = async ({ id, payment_method = "cash", user }) => {
   const connection = await db.getConnection();
   try {
     await connection.beginTransaction();
@@ -329,6 +363,11 @@ const payFullRemaining = async ({ id, payment_method = "cash" }) => {
     if (!booking) {
       await connection.rollback();
       return { notFound: true };
+    }
+
+    if (!canAccessBooking(user, booking.owner_user_id)) {
+      await connection.rollback();
+      return { forbidden: true };
     }
 
     const paidAmount = await paymentRepository.getPaidAmountByBookingId(connection, id);

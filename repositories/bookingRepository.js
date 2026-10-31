@@ -143,9 +143,27 @@ const updateBookingStatus = async ({ id, status }) => {
   await db.query(`UPDATE bookings SET status = ? WHERE id = ?`, [status, id]);
 };
 
+const getBookingOwnerUserId = async (id) => {
+  const [[booking]] = await db.query(
+    `
+      SELECT c.user_id
+      FROM bookings b
+      JOIN customers c ON c.id = b.customer_id
+      WHERE b.id = ?
+    `,
+    [id]
+  );
+  return booking || null;
+};
+
 const getBookingTotalById = async (connection, id) => {
   const [[booking]] = await connection.query(
-    `SELECT id, total_price FROM bookings WHERE id = ?`,
+    `
+      SELECT b.id, b.total_price, c.user_id AS owner_user_id
+      FROM bookings b
+      JOIN customers c ON c.id = b.customer_id
+      WHERE b.id = ?
+    `,
     [id]
   );
   return booking || null;
@@ -236,6 +254,7 @@ module.exports = {
   getBookings,
   countBookings,
   updateBookingStatus,
+  getBookingOwnerUserId,
   getBookingTotalById,
   getBookingDetailsForEmail,
   deleteBooking,

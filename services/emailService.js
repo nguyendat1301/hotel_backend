@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const { formatDateOnly } = require("../utils/dateOnly");
 require("dotenv").config();
 
 const transporter = nodemailer.createTransport({
@@ -66,7 +67,7 @@ const sendBookingConfirmation = async (email, bookingDetails) => {
               <tr>
                 <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 14px;">Thời gian lưu trú</td>
                 <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 600; color: #0f172a;">
-                  ${new Date(bookingDetails.checkInDate).toLocaleDateString("vi-VN")} → ${new Date(bookingDetails.checkOutDate).toLocaleDateString("vi-VN")}
+                  ${formatDateOnly(bookingDetails.checkInDate)} → ${formatDateOnly(bookingDetails.checkOutDate)}
                 </td>
               </tr>
               <tr>

@@ -1,10 +1,9 @@
 const customerRepository = require('../repositories/customerRepository');
+const { getPagination, getPaginationMetadata } = require("../utils/pagination");
 
-const getAllCustomers = async ({ page = 1, limit = 6, search = "" }) => {
-    const currentPage = parseInt(page, 10) || 1;
-    const pageSize = parseInt(limit, 10) || 6;
+const getAllCustomers = async ({ page, limit, search = "" } = {}) => {
+    const requestedPagination = getPagination({ page, limit });
     const trimmedSearch = (search || "").trim();
-    const offset = (currentPage - 1) * pageSize;
     const whereClause = trimmedSearch
         ? "WHERE c.full_name LIKE ? OR c.phone LIKE ? OR c.id_card LIKE ? OR c.email LIKE ?"
         : "";
@@ -12,21 +11,26 @@ const getAllCustomers = async ({ page = 1, limit = 6, search = "" }) => {
         ? [`%${trimmedSearch}%`, `%${trimmedSearch}%`, `%${trimmedSearch}%`, `%${trimmedSearch}%`]
         : [];
 
-    const total = await customerRepository.countCustomers(whereClause, whereParams);
+    const totalItems = await customerRepository.countCustomers(whereClause, whereParams);
+    const pagination = getPaginationMetadata(
+        totalItems,
+        requestedPagination.currentPage,
+        requestedPagination.limit
+    );
     const rows = await customerRepository.getCustomers({
         whereClause,
         whereParams,
-        limit: pageSize,
-        offset,
+        limit: pagination.limit,
+        offset: pagination.offset,
     });
 
     return {
         data: rows,
         pagination: {
-            totalItems: total,
-            totalPages: Math.ceil(total / pageSize),
-            currentPage,
-            limit: pageSize,
+            totalItems: pagination.totalItems,
+            totalPages: pagination.totalPages,
+            currentPage: pagination.currentPage,
+            limit: pagination.limit,
         },
     };
 };
