@@ -26,7 +26,7 @@ const getAllRoomTypes = async () => {
 };
 
 const searchRoomTypes = async (filters) => {
-  const { keyword, room_name, max_guests, min_price, max_price } = filters || {};
+  const { keyword, room_name, max_guests, min_price, max_price, sort } = filters || {};
 
   let whereClauses = [];
   let params = [];
@@ -69,7 +69,7 @@ const searchRoomTypes = async (filters) => {
 
   const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
-  const rows = await roomTypeRepository.searchRoomTypes({ whereSql, params });
+  const rows = await roomTypeRepository.searchRoomTypes({ whereSql, params, sort });
   return rows.map(mapImages);
 };
 

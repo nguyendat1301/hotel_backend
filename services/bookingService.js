@@ -5,6 +5,7 @@ const roomRepository = require("../repositories/roomRepository");
 const paymentRepository = require("../repositories/paymentRepository");
 const dashboardRepository = require("../repositories/dashboardRepository");
 const emailService = require("./emailService");
+const { calculateNights, getTodayDateOnly, isValidDateOnly } = require("../utils/dateOnly");
 
 const normalizePayment = ({ totalPrice, paymentAmount }) => {
   const totalPriceNum = Number(totalPrice) || 0;
@@ -56,27 +57,18 @@ const createBooking = async ({ payload, user }) => {
     throw new Error("Vui lòng cung cấp ngày nhận phòng và ngày trả phòng hợp lệ");
   }
 
-  const startDate = new Date(checkInDate);
-  const endDate = new Date(checkOutDate);
-
-  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+  if (!isValidDateOnly(checkInDate) || !isValidDateOnly(checkOutDate)) {
     throw new Error("Định dạng ngày nhận/trả phòng không hợp lệ");
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  if (startDate < today) {
+  if (checkInDate < getTodayDateOnly()) {
     throw new Error("Ngày nhận phòng không thể ở trong quá khứ");
   }
-  else if (startDate >= endDate) {
+  else if (checkInDate >= checkOutDate) {
     throw new Error("Ngày nhận phòng phải trước ngày trả phòng");
   }
 
-  // Calculate nights
-  const nights = Math.max(
-    1,
-    Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-  );
+  const nights = calculateNights(checkInDate, checkOutDate);
 
   // 2. Normalize and validate rooms list
   let requestedRooms = [];

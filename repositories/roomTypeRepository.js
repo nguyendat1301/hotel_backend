@@ -5,7 +5,13 @@ const getAllRoomTypes = async () => {
   return rows;
 };
 
-const searchRoomTypes = async ({ whereSql, params }) => {
+const searchRoomTypes = async ({ whereSql, params, sort }) => {
+  const orderBy = sort === "price_asc"
+    ? "rt.price_per_night ASC, rt.id DESC"
+    : sort === "price_desc"
+      ? "rt.price_per_night DESC, rt.id DESC"
+      : "rt.id DESC";
+
   const [rows] = await db.query(
     `
       SELECT
@@ -21,7 +27,7 @@ const searchRoomTypes = async ({ whereSql, params }) => {
       LEFT JOIN room r ON r.room_type_id = rt.id
       ${whereSql}
       GROUP BY rt.id
-      ORDER BY rt.id DESC
+      ORDER BY ${orderBy}
     `,
     params
   );
