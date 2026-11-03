@@ -67,6 +67,9 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret
 # Email Settings (SMTP)
 EMAIL_USER=your_email@gmail.com
 EMAIL_PASS=your_email_app_password
+
+# Chatbot (Google Gemini)
+GEMINI_API_KEY=your_gemini_api_key
 ```
 
 > [!NOTE]
@@ -119,3 +122,7 @@ The API is exposed under `/api` routes:
 | **Customers** | | |
 | `GET /api/customers` | Query customer listings | Yes |
 | `POST /api/customers` | Register a customer profile | Yes |
+| **Chatbot** | | |
+| `POST /api/chatbot` | Ask the hotel chatbot; uses public room type data from MySQL | No |
+
+The chatbot reads room names, descriptions, nightly prices, guest capacity, and current room status from `room_types` and `room`. Its available-room count reflects the database status only; it does not confirm availability for specific stay dates. Requests are limited to 30 per IP per 15 minutes.

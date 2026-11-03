@@ -10,6 +10,7 @@ const roomTypeRoutes = require('./routes/roomTypeRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const customerRoutes = require('./routes/customerRoute');
+const chatbotRoute = require('./routes/chatbotRoute')
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/room-types', roomTypeRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/chatbot', chatbotRoute);
 app.use('/api', authRoutes);
 
 
