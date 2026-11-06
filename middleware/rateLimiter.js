@@ -22,7 +22,18 @@ const passwordResetLimiter = rateLimit({
     legacyHeaders: false,
 });
 
+const chatbotLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    message: {
+        message: "Bạn đã gửi quá nhiều câu hỏi, vui lòng thử lại sau 15 phút"
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 module.exports = {
     authLimiter,
-    passwordResetLimiter
+    passwordResetLimiter,
+    chatbotLimiter
 };

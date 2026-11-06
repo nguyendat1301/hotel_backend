@@ -1,121 +1,170 @@
-# Hotel Booking System Backend
 
-The Node.js and Express backend API for the Hotel Booking System. It handles room management, booking transactions with conflict detection, user authentication (including Google OAuth), email notifications, and media uploads via Cloudinary.
+  # Lakeside Hotel API
+
+  **Backend API for hotel bookings, administration, and the customer support chatbot**
+
+  [![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+  [![Express](https://img.shields.io/badge/Express-5-000000?style=flat-square&logo=express&logoColor=white)](https://expressjs.com/)
+  [![MySQL](https://img.shields.io/badge/MySQL-8-4479A1?style=flat-square&logo=mysql&logoColor=white)](https://www.mysql.com/)
+
+  [Features](#features) · [Architecture](#architecture) · [Getting started](#getting-started) · [API overview](#api-overview) · [Scripts](#available-scripts)
+</div>
+
+---
+
+## Overview
+
+`hotel-back` is the Node.js and Express API for the Lakeside Hotel booking platform. It provides authentication, room and reservation management, customer and staff administration, email notifications, image uploads, and a Gemini-powered chatbot. MySQL is accessed through `mysql2` and a repository/service architecture.
+
+The React frontend is in [`hotel-admin`](../hotel-admin).
 
 ## Features
 
-- **Authentication & Security**: Email-based signup/login, Google OAuth 2.0 integration, JWT authentication stored in cookies, password hashing with `bcryptjs`, and rate limiting on authentication and password reset routes.
-- **Room & Room Type Management**: CRUD operations for rooms and room types with image upload integration to Cloudinary.
-- **Booking Engine**: Transaction-safe booking process that handles double-booking checks, total cost calculation, and transaction rollback.
-- **Customer Management**: Register and manage customer profiles and metadata.
-- **Notification Service**: Automated HTML email notifications using `nodemailer` for booking confirmations and password reset workflows.
-- **Database Layer**: Relational data modeling using MySQL (`mysql2` connection pool) with structured Repository and Service pattern separation.
+- Email/password registration and login, Google sign-in, JWT authentication in cookies, profile management, and password reset.
+- Room, room type, booking, customer, and user management, with role-protected administrative operations.
+- Booking availability checks, reservation status management, and full-payment processing.
+- Image uploads to Cloudinary and transactional email notifications through Nodemailer.
+- Chatbot with intent classification, Gemini embeddings, semantic retrieval from MySQL, and live room data.
+- Rate limiting for authentication, password reset, and chatbot requests.
 
-## Tech Stack
+## Tech stack
 
-- **Runtime**: Node.js
-- **Framework**: Express.js
-- **Database**: MySQL (using `mysql2` with promise wrappers)
-- **Authentication**: JWT (`jsonwebtoken`), Google Auth Library (`google-auth-library`), Cookie Parser (`cookie-parser`)
-- **Media Upload**: Multer, Cloudinary
-- **Notifications**: Nodemailer
-- **Utilities**: Bcrypt.js, Express Rate Limit, Dotenv, Nodemon (development)
+| Area | Technologies |
+| --- | --- |
+| Runtime and API | Node.js, Express 5 |
+| Database | MySQL, `mysql2` |
+| Authentication | JWT, `bcryptjs`, Google Auth Library, cookie-parser |
+| Chatbot | Google Gemini API (`@google/genai`) |
+| Uploads and email | Cloudinary, Multer, Nodemailer |
+| Tests | Node.js built-in test runner |
 
----
+## Architecture
 
-## Prerequisites
+```text
+server.js
+├── routes/          HTTP route definitions
+├── controllers/     Request handling
+├── services/        Business logic and integrations
+├── repositories/    Database access
+├── middleware/      Authentication, roles, uploads, rate limits
+├── migrations/      Database migrations
+├── scripts/         Knowledge-base ingestion
+└── tests/           Automated tests
+```
 
-Ensure you have the following installed on your local machine:
-- [Node.js](https://nodejs.org/) (v16 or higher recommended)
-- [MySQL Database Server](https://www.mysql.com/)
+### Chatbot request flow
 
----
+1. Classify the question intent.
+2. Retrieve relevant knowledge-base chunks using Gemini embeddings and cosine similarity; query MySQL for dynamic room information when applicable.
+3. Generate an answer with Gemini and return the response with its sources.
 
-## Getting Started
+## Getting started
 
-### 1. Clone the repository and install dependencies
+### Requirements
+
+- Node.js 18 or later and npm
+- MySQL 8.0 or a compatible MariaDB server
+- A Google Gemini API key to use the chatbot
+
+Google OAuth, Cloudinary, and email credentials are required only for the corresponding integrations.
+
+### Install and configure
+
+From the backend directory:
 
 ```bash
 npm install
 ```
 
-### 2. Configure Environment Variables
+Copy `.env.example` to `.env` and set the values for your environment. At minimum, configure the database connection, `PORT_Server`, `FRONTEND_URL`, and a strong `JWT_SECRET`. Set the relevant provider credentials to enable Google sign-in, Cloudinary uploads, email, and Gemini features.
 
-Create a `.env` file in the root directory (using the variables shown below) and populate it with your local credentials:
+| Variable | Purpose |
+| --- | --- |
+| `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | MySQL connection |
+| `DB_CONNECTION_LIMIT` | MySQL connection pool size |
+| `PORT_Server` | HTTP server port (for example, `5000`) |
+| `FRONTEND_URL` | Allowed frontend origin for credentialed CORS |
+| `JWT_SECRET` | Secret used to sign authentication tokens |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google authentication |
+| `GEMINI_API_KEY` | Google Gemini API access |
+| `GEMINI_MODEL`, `GEMINI_EMBEDDING_MODEL` | Chat and embedding models |
+| `CHATBOT_MAX_RETRIES`, `CHATBOT_TIMEOUT_MS` | Chatbot retry and timeout settings |
+| `CLOUD_NAME`, `API_KEY`, `API_SECRET` | Cloudinary upload credentials |
+| `EMAIL_USER`, `EMAIL_PASS` | Email sender credentials |
 
-```ini
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_mysql_password
-DB_NAME=hotel
+> [!IMPORTANT]
+> The existing application database schema must be available in MySQL. The migration below creates only the chatbot knowledge table; it does not initialize the booking and user tables.
 
-PORT_Server=5000
-FRONTEND_URL=http://localhost:5173
+### Set up chatbot knowledge
 
-JWT_SECRET=your_jwt_secret_key
+Apply the chatbot migration from `hotel-back`:
 
-# Cloudinary Setup
-CLOUD_NAME=your_cloudinary_cloud_name
-API_KEY=your_cloudinary_api_key
-API_SECRET=your_cloudinary_api_secret
-
-# Google OAuth Setup
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-
-# Email Settings (SMTP)
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASS=your_email_app_password
+```bash
+mysql -u root -p hotel < migrations/001_chatbot_knowledge_chunks.sql
 ```
 
-> [!NOTE]
-> The database schema must be initialized in your MySQL instance matching the structure specified in the repository files (`bookings`, `users`, `customers`, `room`, `room_types`, `payments`).
+Then ingest the static hotel knowledge and generate embeddings:
 
-### 3. Start the Server
-
-To start the development server with hot-reloading (via Nodemon):
 ```bash
+npm run ingest
+```
+
+To force re-ingestion:
+
+```bash
+node scripts/ingest.js --force
+```
+
+### Run the API
+
+```bash
+# Development with automatic reload
 npm run dev
-```
 
-To run in production mode:
-```bash
+# Production
 npm start
 ```
 
-The API server will run at `http://localhost:5000` (or the port defined by `PORT_Server`).
+The API listens on `http://localhost:<PORT_Server>` and is mounted under `/api`.
 
----
+## API overview
 
-## API Endpoints
+All routes below are prefixed with `/api`. Routes marked **Protected** require authentication; administrative routes also require the configured administrator role.
 
-The API is exposed under `/api` routes:
+| Area | Routes | Access |
+| --- | --- | --- |
+| Authentication | `POST /register`, `/login`, `/google-login`, `/logout`, `/forgot-password`, `/reset-password`; `GET /profile`; `PUT /profile` | Public or authenticated, depending on route |
+| Rooms | `GET /rooms`, `GET /rooms/:id`; `POST`, `PUT`, `DELETE /rooms` | Read routes public; mutations admin |
+| Room types | `/room-types` and `/room-types/:id`; `GET /room-types/search` | Read routes public; mutations admin |
+| Bookings | `GET /bookings/available-rooms`, `/bookings/my-bookings`; `POST /bookings`; `GET /bookings`; `PUT /bookings/:id/status`; `POST /bookings/:id/pay-full`; `DELETE /bookings/:id` | Public availability; remaining routes protected, some admin-only |
+| Customers and users | `/customers`, `/customers/:id`; `/users`, `/users/:id` | Admin |
+| Chatbot | `GET /chatbot/knowledge`, `POST /chatbot`; `POST /chatbot/ingest`, `GET /chatbot/stats` | Knowledge and chat public (chat rate-limited); ingestion and stats admin |
 
-| Route | Description | Auth Required |
-|---|---|---|
-| **Authentication** | | |
-| `POST /api/register` | Register a new administrator / operator | No |
-| `POST /api/login` | Log in to obtain JWT cookie | No |
-| `POST /api/google-login` | Authenticate with Google ID Token | No |
-| `POST /api/logout` | Clear the auth cookie | No |
-| `POST /api/forgot-password` | Request password reset token | No |
-| `POST /api/reset-password` | Submit new password with token | No |
-| `GET /api/profile` | Get current user's profile | Yes |
-| `PUT /api/profile` | Update profile information | Yes |
-| **Rooms** | | |
-| `GET /api/rooms` | Query rooms list | Yes |
-| `POST /api/rooms` | Add a new room | Yes |
-| `PUT /api/rooms/:id` | Edit room details | Yes |
-| `DELETE /api/rooms/:id` | Remove a room | Yes |
-| **Room Types** | | |
-| `GET /api/room-types` | Fetch room categories | No |
-| `POST /api/room-types` | Create a room type with image upload | Yes |
-| **Bookings** | | |
-| `GET /api/bookings` | View booking records | Yes |
-| `POST /api/bookings` | Book a room (performs transaction & emails confirmation) | Yes |
-| `PUT /api/bookings/:id/status` | Update booking status | Yes |
-| `DELETE /api/bookings/:id` | Cancel/delete booking and related payments | Yes |
-| **Customers** | | |
-| `GET /api/customers` | Query customer listings | Yes |
-| `POST /api/customers` | Register a customer profile | Yes |
+## Available scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the development server with Nodemon |
+| `npm start` | Start the API server |
+| `npm test` | Run the chatbot test file |
+| `npm run test:chatbot` | Run selected chatbot unit tests |
+| `npm run ingest` | Ingest chatbot knowledge |
+
+## Project structure
+
+```text
+hotel-back/
+├── controllers/
+├── data/                 # Static chatbot knowledge
+├── middleware/
+├── migrations/
+├── repositories/
+├── routes/
+├── scripts/
+├── services/
+├── tests/
+├── utils/
+├── db.js
+├── server.js
+└── package.json
+```

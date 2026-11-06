@@ -10,6 +10,8 @@ const roomTypeRoutes = require('./routes/roomTypeRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const customerRoutes = require('./routes/customerRoute');
+const chatbotRoute = require('./routes/chatbotRoute')
+const { checkGeminiConnection } = require('./services/chatbotService');
 
 const app = express();
 
@@ -30,6 +32,7 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/room-types', roomTypeRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/chatbot', chatbotRoute);
 app.use('/api', authRoutes);
 
 
@@ -37,4 +40,8 @@ app.use('/api', authRoutes);
 
 app.listen(process.env.PORT_Server, () => {
     console.log(`Server đang chạy tại http://localhost:${process.env.PORT_Server}`);
+
+    checkGeminiConnection()
+        .then(() => console.log('Kết nối Gemini thành công.'))
+        .catch((error) => console.error('Kết nối Gemini thất bại:', error.message));
 });

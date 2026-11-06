@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test tests/chatbot.test.js",
+    "test:chatbot": "node --test --test-name-pattern \"IntentClassifier|DateExtractor|EmbeddingService|Input Validation|Prompt Injection|Knowledge Base\" tests/chatbot.test.js",
+    "ingest": "node scripts/ingest.js",
     "start": "node server.js"
   },
   "keywords": [],
@@ -13,6 +15,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@google/genai": "^2.32.0",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^1.41.3",
     "cookie-parser": "^1.4.7",
