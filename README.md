@@ -1,5 +1,3 @@
-<div align="center">
-  <img src="[../hotel-admin/public/favicon.svg](https://www.google.com/imgres?q=hotel%20lakeside%20logo&imgurl=https%3A%2F%2Fimages.squarespace-cdn.com%2Fcontent%2Fv1%2F5e0a613f6d70e73369960c60%2F52592ccc-ca35-4ec0-98c7-1953d57df22a%2Flakeside-logo-design-rev-by-gray.png&imgrefurl=https%3A%2F%2Fdesignbygray.co.uk%2Fwork%2Flakeside-hotel&docid=zalHCuuThnDmQM&tbnid=3MYv1p8iD59irM&vet=12ahUKEwjk2fee5PKXAxVZZ_UHHUN9JqkQnPAOegQIORAA..i&w=1920&h=1400&hcb=2&ved=2ahUKEwjk2fee5PKXAxVZZ_UHHUN9JqkQnPAOegQIORAA)" width="72" height="72" alt="Lakeside Hotel logo" />
 
   # Lakeside Hotel API
 
